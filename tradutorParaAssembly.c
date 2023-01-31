@@ -6,22 +6,11 @@
 
 struct CampoQueSeraAlocado{
     int quantidadeBytes;
-    char * valor;
+    char * nome;
 } camposQueSeraoAlocados[10];
 
-void remove_newline(char *ptr)
-{
-    while (*ptr) {
-        if (*ptr == '\n')
-        *ptr = 0;
-    else
-        ptr++;
-    }
-}
-
-//auxilia na escrita da alocação na pilha 
-//onde se precisa saber menos quantos bytes 
-//após o rbp são necessários para alocar um item
+//Auxilia na escrita da alocação na pilha onde se precisa saber menos quantos bytes 
+//após o rbp são necessários para alocar um item.
 int somaBytesAtePosicao (int posicao)
 {
     int qntBytes = 0;
@@ -29,6 +18,75 @@ int somaBytesAtePosicao (int posicao)
         qntBytes+=camposQueSeraoAlocados[i].quantidadeBytes;
     }
     return qntBytes;
+}
+
+//Soma a quantidade de bytes para alocar os parâmetros recebidos na função
+//mais os bytes da variáveis locais. A função também desenha a pilha.
+int calculaTamanhoPilhaParaFuncao (FILE * arquivoCopiaParaCalcularQuantidadeDeBytesParaAlocar, char * nomeFuncao)
+{
+    char line[LINESZ];
+    int tamanhoPilha = 0, size;
+    char nome[3], rdi[4], rsi[4], rdx[4], nomeVariavel[4];   
+
+    while (fgets(line, LINESZ, arquivoCopiaParaCalcularQuantidadeDeBytesParaAlocar) != NULL){
+        
+        if (strncmp(line, "function", 8) == 0) {
+        
+            sscanf(line, "function %s %s %s %s", nome, rdi, rsi, rdx);
+            
+            if(strcmp(nome,nomeFuncao) == 0){
+                printf("\n\n##A PILHA DA FUNÇÃO %s:\n",nome);
+
+                //verificando se o primeiro parametro veio com inteiro ou ponteiro. Se vazio faz nada
+                if(strncmp(rdi, "pi", 2) == 0){
+                    tamanhoPilha +=4;
+                    printf("#%s: -%d\n",rdi,tamanhoPilha);
+                }
+                else if(strncmp(rdi, "pa", 2) == 0){
+                    tamanhoPilha +=8;
+                    printf("#%s: -%d\n",rdi,tamanhoPilha);
+                } 
+                                
+                //verificando se o segundo parametro veio com inteiro ou ponteiro. Se vazio faz nada
+                if(strncmp(rsi, "pi", 2) == 0){
+                    tamanhoPilha +=4;
+                    printf("#%s: -%d\n",rsi,tamanhoPilha);
+                }
+                else if(strncmp(rsi, "pa", 2) == 0){
+                    tamanhoPilha +=8;
+                    printf("#%s: -%d\n",rsi,tamanhoPilha);
+                }
+
+                //verificando se o terceiro parametro veio com inteiro ou ponteiro. Se vazio faz nada
+                if(strncmp(rdx, "pi", 2) == 0){
+                    tamanhoPilha +=4;
+                    printf("#%s: -%d\n",rdx,tamanhoPilha);
+                }else if(strncmp(rdx, "pa", 2) == 0){
+                    tamanhoPilha+=8;
+                    printf("#%s: -%d\n",rdx,tamanhoPilha);
+                }
+            }
+        }
+        if (strncmp(line, "var", 3) == 0 && strcmp(nome,nomeFuncao) == 0){
+            sscanf(line, "var %s", nomeVariavel);
+            tamanhoPilha +=4;
+            printf("#%s: -%d\n",nomeVariavel,tamanhoPilha);
+
+        }else if (strncmp(line, "vet", 3) == 0 && strcmp(nome,nomeFuncao) == 0){
+            sscanf(line, "vet %s size ci%d", nomeVariavel, &size);
+
+            if(size>0){
+                tamanhoPilha += 4*size;
+            }else{
+                printf("TAMANHO DE ARRAY NÃO DEVE SER NEGATIVO!");
+                return 0;
+            }
+
+            printf("#%s: -%d\n",nomeVariavel,tamanhoPilha);
+        }else if(strncmp(line, "end", 3) == 0 && strcmp(nome,nomeFuncao) == 0){
+            return tamanhoPilha;
+        }
+    }
 }
 
 int main()
@@ -42,35 +100,36 @@ int main()
 
     while (fgets(line, LINESZ, stdin) != NULL) {
 
-        char nomeFuncao[3], rdi[4], rsi[4], rdx[4];   
+        char nomeFuncao[3], rdi[4], rsi[4], rdx[4], nomeVariavel[5];   
         char v1;
-        int r, quantidadeBytesNaPilha, qntParametros, posicaoVariavelLocal;
+        int r, quantidadeBytesNaPilha, qntParametros, posicaoVariavelLocal, size;
 
         count++;
-        remove_newline(line);
 
-        // Verifica se line começa com 'function' (3 letras)
+        // Verifica se line começa com 'function' 
         if (strncmp(line, "function", 8) == 0) {
 
             sscanf(line, "function %s %s %s %s", nomeFuncao, rdi, rsi, rdx);  
             
-            printf(".globl %s\n", nomeFuncao);
+            printf("\n.globl %s\n", nomeFuncao);
             printf("%s:\n", nomeFuncao);
 
-            printf("pushq %%rbp\n movq %%rsp, %%rbp\n\n");
+            printf("pushq %%rbp\nmovq %%rsp, %%rbp");
+
+            printf("\nsubq -%d,%%rsp\n\n", calculaTamanhoPilhaParaFuncao(fopen("./progParaTeste.blp", "rt"), nomeFuncao));
 
             posicaoVariavelLocal = 0;
 
             //verificando se o primeiro parametro veio com inteiro, ponteiro. Se vazio faz nada
             if(strncmp(rdi, "pi", 2) == 0){
                 //%edi na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rdi;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdi;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
                 posicaoVariavelLocal++;
             }
             else if(strncmp(rdi, "pa", 2) == 0){
                 //%rdi na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rdi;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdi;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
                 posicaoVariavelLocal++;
             }
@@ -78,13 +137,13 @@ int main()
             //verificando se o segundo parametro veio com inteiro, ponteiro. Se vazio faz nada
             if(strncmp(rsi, "pi", 2) == 0){
                 //%esi na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rsi;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rsi;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
                 posicaoVariavelLocal++; 
             }
             else if(strncmp(rsi, "pa", 2) == 0){
                 //%rsi na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rsi;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rsi;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
                 posicaoVariavelLocal++; 
             }
@@ -92,13 +151,13 @@ int main()
             //verificando se o terceiro parametro veio com inteiro, ponteiro. Se vazio faz nada
             if(strncmp(rdx, "pi", 2) == 0){
                 //%edx na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rdx;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdx;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
                 posicaoVariavelLocal++; 
             }
             else if(strncmp(rdx, "pa", 2) == 0){
                 //%rdx na pilha
-                camposQueSeraoAlocados[posicaoVariavelLocal].valor = rdx;
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdx;
                 camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
                 posicaoVariavelLocal++;  
             }
@@ -106,23 +165,33 @@ int main()
             continue;
         }
 
-        //Inicia a declaração de variáveis locais
-        if (strncmp(line, "def", 3) == 0) {
-      
+        //variaveis inteiras
+        if (strncmp(line, "var", 3) == 0){
+            sscanf(line, "var %s", nomeVariavel);
+            camposQueSeraoAlocados[posicaoVariavelLocal].nome = nomeVariavel;
+            camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes = 4;
+            posicaoVariavelLocal++;
+            printf("movq %s,-%d(%%rbp)\n",nomeVariavel,somaBytesAtePosicao(posicaoVariavelLocal));
+            
             continue;
         }
+        
+        //variaveis de arrays inteiros
+        if (strncmp(line, "vet", 3) == 0){
+            sscanf(line, "vet %s size ci%d", nomeVariavel, &size);
 
-        //Define uma variáveis local
-        if (strncmp(line, "var", 3) == 0) {
-      
-            continue;
-        }
+            if(size>0){
+                camposQueSeraoAlocados[posicaoVariavelLocal].nome = nomeVariavel;
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes = 4*size;
+                posicaoVariavelLocal++;
+                printf("movq %s,-%d(%%rbp)\n",nomeVariavel,somaBytesAtePosicao(posicaoVariavelLocal));
+            }else{
+                printf("TAMANHO DE ARRAY NÃO DEVE SER NEGATIVO!");
+                return 0;
+            }
 
-        //Finaliza a declaração de variáveis locais
-        if (strncmp(line, "enddef", 6) == 0) {
-      
             continue;
-        }
+        }   
 
         //Atribuição FALTA AJUSTAR A POSIÇAO DA ATRIBUIÇÃO
         if (strncmp(line, "=", 1) == 0) {
@@ -133,8 +202,8 @@ int main()
         //Chamada de função FALTA AJUSTAR A POSIÇÃO DO CALL
         if(strncmp(line,"call", 4) == 0){
 
-            for(int i = 0; camposQueSeraoAlocados[i].valor != NULL; i++){
-                    printf("movq %s,-%d(%%rbp)\n\n",camposQueSeraoAlocados[i].valor, somaBytesAtePosicao(i));
+            for(int i = 0; camposQueSeraoAlocados[i].nome != NULL; i++){
+                    printf("movq %s,-%d(%%rbp)\n\n",camposQueSeraoAlocados[i].nome, somaBytesAtePosicao(i));
             }
 
             qntParametros = sscanf(line, "call %s %s %s %s", nomeFuncao, rdi, rsi, rdx);  
@@ -148,9 +217,10 @@ int main()
 
             printf("call %s\n\n", nomeFuncao);
 
-            for(int i = 0; camposQueSeraoAlocados[i].valor != NULL; i++){
-                printf("movq -%d(%%rbp), %s\n\n", somaBytesAtePosicao(i), camposQueSeraoAlocados[i].valor);
+            for(int i = 0; camposQueSeraoAlocados[i].nome != NULL; i++){
+                printf("movq -%d(%%rbp), %s\n\n", somaBytesAtePosicao(i), camposQueSeraoAlocados[i].nome);
             }
+            continue;
         }
 
         //Acesso a um array
@@ -182,7 +252,7 @@ int main()
             //prepara vetor para novos vampos da nova função
             for(int i = 0; i < 10; i++){
                 camposQueSeraoAlocados[i].quantidadeBytes = 0;
-                camposQueSeraoAlocados[i].valor = NULL;
+                camposQueSeraoAlocados[i].nome = NULL;
             }
             continue;
         }
