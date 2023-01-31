@@ -7,7 +7,7 @@
 struct CampoQueSeraAlocado{
     int quantidadeBytes;
     char * nome;
-} camposQueSeraoAlocados[10];
+} camposQueSeraoAlocados[20];
 
 //Auxilia na escrita da alocação na pilha onde se precisa saber menos quantos bytes 
 //após o rbp são necessários para alocar um item.
@@ -100,7 +100,7 @@ int main()
 
     while (fgets(line, LINESZ, stdin) != NULL) {
 
-        char nomeFuncao[3], rdi[4], rsi[4], rdx[4], nomeVariavel[5];   
+        char nomeFuncao[3], rdi[4], rsi[4], rdx[4], nomeVariavel[5],valor[4], condicao[4];   
         char v1;
         int r, quantidadeBytesNaPilha, qntParametros, posicaoVariavelLocal, size;
 
@@ -124,13 +124,13 @@ int main()
             if(strncmp(rdi, "pi", 2) == 0){
                 //%edi na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdi;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =4;    
                 posicaoVariavelLocal++;
             }
             else if(strncmp(rdi, "pa", 2) == 0){
                 //%rdi na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdi;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =8;    
                 posicaoVariavelLocal++;
             }
             
@@ -138,13 +138,13 @@ int main()
             if(strncmp(rsi, "pi", 2) == 0){
                 //%esi na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rsi;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =4;    
                 posicaoVariavelLocal++; 
             }
             else if(strncmp(rsi, "pa", 2) == 0){
                 //%rsi na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rsi;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =8;    
                 posicaoVariavelLocal++; 
             }
 
@@ -152,13 +152,13 @@ int main()
             if(strncmp(rdx, "pi", 2) == 0){
                 //%edx na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdx;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=4;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =4;    
                 posicaoVariavelLocal++; 
             }
             else if(strncmp(rdx, "pa", 2) == 0){
                 //%rdx na pilha
                 camposQueSeraoAlocados[posicaoVariavelLocal].nome = rdx;
-                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes +=8;    
+                camposQueSeraoAlocados[posicaoVariavelLocal].quantidadeBytes =8;    
                 posicaoVariavelLocal++;  
             }
 
@@ -201,9 +201,11 @@ int main()
 
         //Chamada de função FALTA AJUSTAR A POSIÇÃO DO CALL
         if(strncmp(line,"call", 4) == 0){
-
-            for(int i = 0; camposQueSeraoAlocados[i].nome != NULL; i++){
-                    printf("movq %s,-%d(%%rbp)\n\n",camposQueSeraoAlocados[i].nome, somaBytesAtePosicao(i));
+            int i;
+            printf("\n");
+            
+            for(i = 0; i< posicaoVariavelLocal; i++){
+                    printf("movq %s,-%d(%%rbp)\n",camposQueSeraoAlocados[i].nome, somaBytesAtePosicao(i));
             }
 
             qntParametros = sscanf(line, "call %s %s %s %s", nomeFuncao, rdi, rsi, rdx);  
@@ -216,9 +218,9 @@ int main()
             }
 
             printf("call %s\n\n", nomeFuncao);
-
-            for(int i = 0; camposQueSeraoAlocados[i].nome != NULL; i++){
-                printf("movq -%d(%%rbp), %s\n\n", somaBytesAtePosicao(i), camposQueSeraoAlocados[i].nome);
+            
+            for(i = 0; i< posicaoVariavelLocal; i++){
+                printf("movq -%d(%%rbp), %s\n", somaBytesAtePosicao(i), camposQueSeraoAlocados[i].nome);
             }
             continue;
         }
@@ -231,24 +233,39 @@ int main()
 
         //Condicional  
         if (strncmp(line, "if", 2) == 0) {
-      
+            sscanf(line, "if %s", condicao);
+            printf("cmp $0,%s\n",condicao);
+            printf("je endif\n");
             continue;
         }
 
         //Fim condicional  
         if (strncmp(line, "endif", 5) == 0) {
-      
+            printf("\nendif:\n\n");
             continue;
         }
 
         //Retorno da função
         if (strncmp(line, "return", 3) == 0) {
       
-            continue;
+            int qntAtribuicao = sscanf(line, "return %s", valor);
+            
+            if(qntAtribuicao == 1){
+                if(strncmp(line, "pa", 2) == 0 || strncmp(line, "va", 2) == 0){
+                    printf("\n\nmovq %s,%%rax\n\n",valor);
+                }else if(strncmp(line, "pi", 2) == 0 || strncmp(line, "vi", 2) == 0){
+                    printf("\n\nmovl %s,%%eax\n\n",valor);
+                }else{
+                    sscanf(valor, "ci%s", valor);
+                    printf("\n\nmovl $%s,%%eax\n\n",valor);
+                }
+            }
+
+            break;
         }
 
         //Fim da função
-        if (strncmp(line, "end", 3) == 0) {
+        if (strcmp(line, "end") == 0) {
             //prepara vetor para novos vampos da nova função
             for(int i = 0; i < 10; i++){
                 camposQueSeraoAlocados[i].quantidadeBytes = 0;
