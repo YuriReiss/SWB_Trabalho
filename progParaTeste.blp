@@ -1,10 +1,13 @@
 function f1 pa1
 def
-vet va1 size ci1
+var vi1
+vet va1 size ci5
 enddef
 if va1
+va1 = ci5 + vi1
+get va1 index 2 to vi1
 endif
-call f2 va1
+call f2 va1 va2
 return ci0
 end
 function f2 pi1
